@@ -1,19 +1,36 @@
-from unittest.mock import MagicMock
+import sqlite3
 
-class IUserRepository:
-    def save_score(self, name: str, score: int):
-        pass
+def setup_database():
+    conn = sqlite3.connect(":memory:")  # Используем in-memory базу данных для теста
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY, name TEXT, score INTEGER)''')
+    conn.commit()
+    return conn, cursor
+
+def user_exists(cursor, name):
+    cursor.execute("SELECT 1 FROM scores WHERE name = ?", (name,))
+    return cursor.fetchone() is not None
+
+def save_score(cursor, conn, name, score):
+    if not user_exists(cursor, name):
+        cursor.execute("INSERT INTO scores (name, score) VALUES (?, ?)", (name, score))
+        conn.commit()
+        return True
+    return False
+
+def test_existing_user_registration():
+    conn, cursor = setup_database()
+    name = "Player1"
+    score = 100
     
-    def get_top_scores(self):
-        pass
+    # Первая регистрация должна сработать
+    assert save_score(cursor, conn, name, score) == True
+    
+    # Повторная регистрация не должна сработать
+    assert save_score(cursor, conn, name, 200) == False
+    
+    conn.close()
+    print("Тест пройден: регистрация уже существующего пользователя не срабатывает.")
 
-# Создание mock-объекта
-mock_user_repository = MagicMock(spec=IUserRepository)
-
-# Настройка поведения mock-объекта
-mock_user_repository.get_top_scores.return_value = [("Player1", 100), ("Player2", 90)]
-
-# Использование mock-объекта в тестах
-print(mock_user_repository.get_top_scores())  # [('Player1', 100), ('Player2', 90)]
-mock_user_repository.save_score("TestPlayer", 50)
-mock_user_repository.save_score.assert_called_with("TestPlayer", 50)
+# Запуск теста
+test_existing_user_registration()
